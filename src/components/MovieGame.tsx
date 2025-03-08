@@ -5,23 +5,14 @@ import {
     Autocomplete,
     Typography,
     Paper,
-    Grid,
-    Avatar,
     Chip,
-   // Alert,
-    Container,
     CircularProgress,
     Button,
-    Accordion,
-    AccordionSummary,
-    AccordionDetails,
-   // Divider,
     Collapse,
 } from '@mui/material';
-import type { Movie, Cast, Crew, MovieGuessResult, MovieBasic } from '../config/tmdb';
-import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies, resetGameState } from '../services/tmdb';
+import type { Movie, MovieGuessResult, MovieBasic } from '../config/tmdb';
+import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies } from '../services/tmdb';
 import { debounce } from '@mui/material/utils';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -56,21 +47,12 @@ export const MovieGame: React.FC = () => {
     const [won, setWon] = useState(false);
     const [loading, setLoading] = useState(false);
     const [isInitializing, setIsInitializing] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-    const [hints, setHints] = useState<{
-        releaseYear?: boolean;
-        genre?: boolean;
-        overview?: boolean;
-        runtime?: boolean;
-    }>({});
     const [hasGivenUp, setHasGivenUp] = useState(false);
     const [showShareMessage, setShowShareMessage] = useState(false);
     const [hintUsed, setHintUsed] = useState(false);
-    // Add this ref to track initialization
     const initRef = React.useRef(false);
 
-    // Update the initializeGame function
     const initializeGame = async () => {
         console.log('Init state:', { isInitializing, initRef: initRef.current });
         
@@ -89,21 +71,18 @@ export const MovieGame: React.FC = () => {
             initRef.current = true;
         } catch (err) {
             console.error('Failed to initialize game:', err);
-            setError('Failed to load movie. Please try again.');
             initRef.current = false; // Reset on error
         } finally {
             setIsInitializing(false);
         }
     };
 
-    // Update the useEffect
     useEffect(() => {
         if (!initRef.current) {
             initializeGame();
         }
     }, []);
 
-    // Debounced search function to prevent too many API calls
     const debouncedSearch = React.useMemo(
         () => debounce(async (query: string) => {
             if (query.length >= 2) {
@@ -113,7 +92,6 @@ export const MovieGame: React.FC = () => {
                     setSearchResults(results);
                 } catch (error) {
                     console.error('Search failed:', error);
-                    setError('Search failed. Please try again.');
                 } finally {
                     setLoading(false);
                 }
@@ -124,7 +102,6 @@ export const MovieGame: React.FC = () => {
         []
     );
 
-    // Clear debounced function on unmount
     React.useEffect(() => {
         return () => {
             debouncedSearch.clear();
@@ -145,7 +122,6 @@ export const MovieGame: React.FC = () => {
             }
         } catch (error) {
             console.error('Failed to process guess:', error);
-            setError('Failed to process guess. Please try again.');
         } finally {
             setLoading(false);
             setSearchQuery('');
@@ -153,7 +129,6 @@ export const MovieGame: React.FC = () => {
         }
     };
 
-    // Then define handleNewGame which uses initializeGame
     const handleNewGame = () => {
         setGuesses([]);
         setSearchQuery('');
@@ -196,11 +171,9 @@ Play at: https://cinedle.com`;
             setTimeout(() => setShowShareMessage(false), 2000);
         } catch (err) {
             console.error('Failed to copy to clipboard:', err);
-            // Optionally show an error message to the user
         }
     };
 
-    // Function to get all discovered information
     const getDiscoveredInfo = () => {
         if (guesses.length === 0) return null;
 
@@ -613,7 +586,6 @@ Play at: https://cinedle.com`;
         );
     };
 
-    // Update the GameOverScreen component
     const GameOverScreen = ({ 
         hasWon, 
         guessCount, 
@@ -762,10 +734,10 @@ Play at: https://cinedle.com`;
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    position: 'fixed',  // Add this to ensure it covers everything
+                    position: 'fixed',
                     top: 0,
                     left: 0,
-                    backgroundColor: 'background.default',  // Match your game's background
+                    backgroundColor: 'background.default',
                 }}
             >
                 <Box 
@@ -795,7 +767,6 @@ Play at: https://cinedle.com`;
                 backgroundColor: 'background.default',
             }}
         >
-            {/* Header */}
             <Box 
                 sx={{ 
                     width: '100%',
@@ -820,6 +791,17 @@ Play at: https://cinedle.com`;
                 >
                     Cinedle
                 </Typography>
+                <Typography 
+                    variant="body1" 
+                    sx={{ 
+                        maxWidth: '600px',
+                        mb: 2,
+                        color: 'text.secondary',
+                        px: 2
+                    }}
+                >
+                    Guess the movie in as few tries as possible. Each guess reveals matching cast, crew, and other details.
+                </Typography>
                 <Button
                     variant="outlined"
                     onClick={handleNewGame}
@@ -834,7 +816,6 @@ Play at: https://cinedle.com`;
                 </Button>
             </Box>
 
-            {/* Main Content */}
             <Box 
                 sx={{ 
                     flex: 1,
@@ -854,7 +835,6 @@ Play at: https://cinedle.com`;
                         gap: 3,
                     }}
                 >
-                    {/* Search Box - Always visible */}
                     <Paper 
                         elevation={0}
                         sx={{ 
@@ -874,7 +854,6 @@ Play at: https://cinedle.com`;
                             }}
                             onChange={(_, value) => {
                                 if (value) {
-                                    // Fetch full movie details before setting
                                     getMovieDetails(value.id).then(movieDetails => {
                                         setSelectedMovie(movieDetails);
                                     });
@@ -884,7 +863,6 @@ Play at: https://cinedle.com`;
                             }}
                             loading={loading}
                             renderOption={(props, option) => {
-                                // Extract key from props and remove it from rest of props
                                 const { key, ...otherProps } = props;
                                 return (
                                     <li key={option.id} {...otherProps}>
@@ -986,10 +964,8 @@ Play at: https://cinedle.com`;
                         </Box>
                     </Paper>
 
-                    {/* Only show hint, discovered information, and guess history if there are guesses */}
                     {guesses.length > 0 && (
                         <>
-                            {/* Hint display */}
                             {hintUsed && targetMovie && (
                                 <Box sx={{ 
                                     mb: 2, 
@@ -1004,7 +980,6 @@ Play at: https://cinedle.com`;
                                 </Box>
                             )}
 
-                            {/* Discovered Information */}
                             {targetMovie && (
                                 <Paper sx={{ p: 2 }}>
                                     <ContextPanel 
@@ -1014,14 +989,12 @@ Play at: https://cinedle.com`;
                                 </Paper>
                             )}
 
-                            {/* Guess History */}
                             <GuessHistory />
                         </>
                     )}
                 </Box>
             </Box>
 
-            {/* Success/Share Section */}
             {(won || hasGivenUp) && (
                 <GameOverScreen
                     hasWon={won}

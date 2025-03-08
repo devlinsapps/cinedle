@@ -159,10 +159,7 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
     }
 };
 
-// Update the MovieDetails interface and ensure it includes all Movie properties
-interface MovieDetails extends Movie {
-    tagline: string;
-}
+
 
 // In the getMovieDetails function, ensure we're returning all required properties
 export const getMovieDetails = async (movieId: number): Promise<Movie> => {
