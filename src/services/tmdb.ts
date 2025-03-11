@@ -396,25 +396,59 @@ export const compareMovies = (targetMovie: Movie, guessedMovie: Movie): MovieGue
         };
     }
 
-    // Budget comparison
-    if (targetMovie.budget && guessedMovie.budget) {
-        const diff = targetMovie.budget - guessedMovie.budget;
-        const percentDiff = Math.abs(diff / targetMovie.budget * 100);
+    // UPDATED Budget comparison - make it more robust
+    const targetBudget = targetMovie.budget || 0;
+    const guessBudget = guessedMovie.budget || 0;
+    
+    // Only provide hint if at least one budget is non-zero
+    if (targetBudget > 0 || guessBudget > 0) {
+        let hint = '';
+        if (targetBudget === 0 && guessBudget > 0) {
+            hint = 'no budget information available';
+        } else if (targetBudget > 0 && guessBudget === 0) {
+            hint = 'budget information (your guess has none)';
+        } else {
+            // Calculate percentage difference to make comparison more meaningful
+            const percentDiff = ((targetBudget - guessBudget) / Math.max(targetBudget, guessBudget)) * 100;
+            if (Math.abs(percentDiff) < 20) {
+                hint = 'similar budget';
+            } else {
+                hint = percentDiff > 0 ? 'higher budget' : 'lower budget';
+            }
+        }
+        
         commonalities.budget = {
-            match: percentDiff <= 10, // Consider it a match if within 10%
-            difference: diff,
-            hint: diff > 0 ? 'higher budget' : 'lower budget'
+            match: targetBudget === guessBudget,
+            difference: targetBudget - guessBudget,
+            hint: hint
         };
     }
 
-    // Revenue comparison
-    if (targetMovie.revenue && guessedMovie.revenue) {
-        const diff = targetMovie.revenue - guessedMovie.revenue;
-        const percentDiff = Math.abs(diff / targetMovie.revenue * 100);
+    // UPDATED Revenue comparison - make it more robust
+    const targetRevenue = targetMovie.revenue || 0;
+    const guessRevenue = guessedMovie.revenue || 0;
+    
+    // Only provide hint if at least one revenue is non-zero
+    if (targetRevenue > 0 || guessRevenue > 0) {
+        let hint = '';
+        if (targetRevenue === 0 && guessRevenue > 0) {
+            hint = 'no box office information available';
+        } else if (targetRevenue > 0 && guessRevenue === 0) {
+            hint = 'box office data (your guess has none)';
+        } else {
+            // Calculate percentage difference for better comparison
+            const percentDiff = ((targetRevenue - guessRevenue) / Math.max(targetRevenue, guessRevenue)) * 100;
+            if (Math.abs(percentDiff) < 20) {
+                hint = 'similar box office performance';
+            } else {
+                hint = percentDiff > 0 ? 'more successful at the box office' : 'less successful at the box office';
+            }
+        }
+        
         commonalities.revenue = {
-            match: percentDiff <= 10, // Consider it a match if within 10%
-            difference: diff,
-            hint: diff > 0 ? 'more successful' : 'less successful'
+            match: targetRevenue === guessRevenue,
+            difference: targetRevenue - guessRevenue,
+            hint: hint
         };
     }
 
@@ -437,7 +471,7 @@ export function getDailySeed(): number {
         const char = dateString.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32bit integer
-        hash+=1;
+        hash+=20;
     }
     return Math.abs(hash);
 }
@@ -466,8 +500,19 @@ async function fetchPopularMovies(): Promise<MovieBasic[]> {
     const API_BASE_URL = 'https://api.themoviedb.org/3';
     const API_TOKEN = import.meta.env.VITE_TMDB_ACCESS_TOKEN;
     
+    // Use the same strict parameters we use for practice games
+    const params = new URLSearchParams({
+        'sort_by': 'popularity.desc',
+        'vote_count.gte': '5000',
+        'vote_average.gte': '6.5',
+        'with_original_language': 'en',
+        'page': '1',
+        'primary_release_date.gte': '1990-01-01',
+        'primary_release_date.lte': `${new Date().getFullYear()}-12-31`,
+    });
+    
     const response = await fetch(
-        `${API_BASE_URL}/movie/popular?language=en-US&page=1`,
+        `${API_BASE_URL}/discover/movie?${params.toString()}`,
         {
             headers: {
                 'Authorization': `Bearer ${API_TOKEN}`,

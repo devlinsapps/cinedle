@@ -38,7 +38,7 @@ const TMDB_URLS = {
 const STORAGE_KEY = 'cinedle_daily_game';
 const STORAGE_DATE_KEY = 'cinedle_last_played_date';
 const PRACTICE_STORAGE_KEY = 'cinedle_practice_game';
-const APP_VERSION = '1.0.3'; // Increment this whenever you want to force a refresh
+const APP_VERSION = '1.0.4'; // Increment this whenever you want to force a refresh
 const VERSION_KEY = 'cinedle_version';
 
 interface GameOverScreenProps {
@@ -572,23 +572,30 @@ Play at: https://cinedle.ca`;
                                             {/* Hints in original text format */}
                                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                                 {/* Release Year Hint */}
-                                                {guess.releaseYear.difference !== 0 && (
+                                                {guess.releaseYear?.difference !== 0 && (
                                                     <Typography variant="body2" color="text.secondary">
                                                         Target movie is {Math.abs(guess.releaseYear.difference)} year(s) {guess.releaseYear.hint}
                                                     </Typography>
                                                 )}
                                                 
-                                                {/* Budget Hint */}
-                                                {guess.budget.difference !== 0 && (
+                                                {/* Budget Hint - Modified for improved display */}
+                                                {guess.budget && guess.budget.difference !== 0 && (
                                                     <Typography variant="body2" color="text.secondary">
                                                         Target movie has a {guess.budget.hint}
                                                     </Typography>
                                                 )}
                                                 
-                                                {/* Revenue Hint */}
-                                                {guess.revenue.difference !== 0 && (
+                                                {/* Revenue Hint - Modified for improved display */}
+                                                {guess.revenue && guess.revenue.difference !== 0 && (
                                                     <Typography variant="body2" color="text.secondary">
                                                         Target movie was {guess.revenue.hint}
+                                                    </Typography>
+                                                )}
+                                                
+                                                {/* Runtime Hint */}
+                                                {guess.runtime?.difference !== 0 && (
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        Target movie is {Math.abs(guess.runtime.difference)} minutes {guess.runtime.hint}
                                                     </Typography>
                                                 )}
                                             </Box>
