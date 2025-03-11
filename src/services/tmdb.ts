@@ -424,4 +424,62 @@ export const compareMovies = (targetMovie: Movie, guessedMovie: Movie): MovieGue
 // Add function to clear the cache (useful for development/testing)
 export const clearMoviePoolCache = () => {
     moviePoolCache = [];
-}; 
+};
+
+// Update the getDailySeed function to generate a consistent seed from the current date
+export function getDailySeed(): number {
+    const today = new Date();
+    const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // Simple hash function to convert date string to a number
+    let hash = 0;
+    for (let i = 0; i < dateString.length; i++) {
+        const char = dateString.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+        hash+=1;
+    }
+    return Math.abs(hash);
+}
+
+// Update the getDailyMovie function to use the seed to select a movie
+export async function getDailyMovie(): Promise<Movie> {
+    // Get a seed based on today's date
+    const seed = getDailySeed();
+    console.log(`Generating daily movie with seed: ${seed}`);
+    
+    // Use your existing API to get a list of popular movies
+    const popularMovies = await fetchPopularMovies();
+    
+    // Use the seed to select a specific movie from the list
+    const index = seed % popularMovies.length;
+    const selectedMovie = popularMovies[index];
+    
+    // Get the full details of the selected movie
+    const movie = await getMovieDetails(selectedMovie.id);
+    
+    return movie;
+}
+
+// Updated to use the API token instead of API key
+async function fetchPopularMovies(): Promise<MovieBasic[]> {
+    const API_BASE_URL = 'https://api.themoviedb.org/3';
+    const API_TOKEN = import.meta.env.VITE_TMDB_ACCESS_TOKEN;
+    
+    const response = await fetch(
+        `${API_BASE_URL}/movie/popular?language=en-US&page=1`,
+        {
+            headers: {
+                'Authorization': `Bearer ${API_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        }
+    );
+    
+    if (!response.ok) {
+        throw new Error(`Failed to fetch popular movies: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.results;
+} 
