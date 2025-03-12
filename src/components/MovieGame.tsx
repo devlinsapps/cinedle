@@ -11,7 +11,7 @@ import {
     Collapse,
 } from '@mui/material';
 import type { Movie, MovieGuessResult, MovieBasic } from '../config/tmdb';
-import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies, getDailyMovie } from '../services/tmdb';
+import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies, getDailyMovie, searchCuratedMovies } from '../services/tmdb';
 import { debounce } from '@mui/material/utils';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -38,7 +38,7 @@ const TMDB_URLS = {
 const STORAGE_KEY = 'cinedle_daily_game';
 const STORAGE_DATE_KEY = 'cinedle_last_played_date';
 const PRACTICE_STORAGE_KEY = 'cinedle_practice_game';
-const APP_VERSION = '1.0.4'; // Increment this whenever you want to force a refresh
+const APP_VERSION = '2.0.0'; // Increment from 1.0.3 to force refresh with new curated movie list
 const VERSION_KEY = 'cinedle_version';
 
 interface GameOverScreenProps {
@@ -173,6 +173,7 @@ export const MovieGame: React.FC = () => {
                     setSearchResults(results);
                 } catch (error) {
                     console.error('Search failed:', error);
+                    setSearchResults([]);
                 } finally {
                     setLoading(false);
                 }

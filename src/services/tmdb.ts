@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Movie, Genre, ProductionCompany, Cast, Crew, MovieBasic } from '../config/tmdb';
 import Fuse from 'fuse.js';
+import { movieList } from '../data/movieList.ts';
 
 const api = axios.create({
     baseURL: 'https://api.themoviedb.org/3',
@@ -65,13 +66,16 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
             params: {
                 query: query,
                 include_adult: false,
-                'vote_count.gte': 100,
                 'sort_by': 'popularity.desc',
                 'page': 1,
-                'per_page': 40  // Increased to get more potential matches
+                'per_page': 40
             }
         });
 
+        // Add debugging
+        console.log('Raw search results:', response.data.results);
+
+        // Relaxed filtering
         const validResults = response.data.results.filter((movie: { 
             id: number;
             title: string;
@@ -79,38 +83,32 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
             popularity: number;
             original_title?: string;
         }) => 
-            movie.vote_count >= 100 && 
-            movie.popularity > 5
+            movie.vote_count >= 50 && // Lowered from 100
+            movie.popularity > 1      // Lowered from 5
         );
 
-        // Enhanced Fuse.js options for better spelling tolerance
+        console.log('Filtered results:', validResults);
+
+        // Rest of the function remains the same...
         const fuseOptions = {
             includeScore: true,
-            threshold: 0.6,    // Higher threshold for more lenient matching
-            distance: 100,     // Allow for more character differences
+            threshold: 0.6,
+            distance: 100,
             minMatchCharLength: 2,
             keys: [
-                { 
-                    name: 'title', 
-                    weight: 2 
-                },
-                { 
-                    name: 'original_title', 
-                    weight: 1 
-                }
+                { name: 'title', weight: 2 },
+                { name: 'original_title', weight: 1 }
             ],
-            // Add advanced fuzzy matching options
             shouldSort: true,
             location: 0,
             findAllMatches: true,
-            ignoreLocation: true,  // Search entire string
+            ignoreLocation: true,
             isCaseSensitive: false,
-            tokenize: true,        // Match individual words
-            matchAllTokens: false, // Allow partial word matches
+            tokenize: true,
+            matchAllTokens: false,
         };
 
         const fuse = new Fuse(validResults, fuseOptions);
-        // Get both exact and fuzzy matches
         const exactMatches = validResults.filter((movie: { 
             title: string;
             original_title?: string;
@@ -118,7 +116,6 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
             const movieTitle = movie.title.toLowerCase();
             const movieOriginalTitle = movie.original_title?.toLowerCase() || '';
             const searchQuery = query.toLowerCase();
-            // Split query into words and check if any word matches
             const queryWords = searchQuery.split(/\s+/);
             return queryWords.some(word => 
                 movieTitle.includes(word) || 
@@ -131,19 +128,19 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
             .filter(result => result.score && result.score < 0.6)
             .map(result => result.item);
 
-        // Combine and deduplicate results
         const combinedResults = [...exactMatches, ...fuzzyMatches];
         const uniqueResults = Array.from(new Map(combinedResults.map(movie => [movie.id, movie])).values());
 
-        // Sort results by relevance and popularity
+        // Add more debugging
+        console.log('Final results before sorting:', uniqueResults);
+
         return uniqueResults
             .sort((a: any, b: any) => {
-                // Create a relevance score that combines popularity and match quality
                 const scoreA = (a.popularity * 0.6) + (Math.log(a.vote_count) * 0.4);
                 const scoreB = (b.popularity * 0.6) + (Math.log(b.vote_count) * 0.4);
                 return scoreB - scoreA;
             })
-            .slice(0, 10)
+            .slice(0, 15) // Increased from 10 to show more results
             .map((movie: any) => ({
                 id: movie.id,
                 title: movie.title,
@@ -158,8 +155,6 @@ export const searchMovies = async (query: string): Promise<MovieBasic[]> => {
         return [];
     }
 };
-
-
 
 // In the getMovieDetails function, ensure we're returning all required properties
 export const getMovieDetails = async (movieId: number): Promise<Movie> => {
@@ -235,61 +230,95 @@ export const getRandomMovie = async (): Promise<Movie> => {
 // Keep track of previously used movie IDs to avoid repeats
 const usedMovieIds = new Set<number>();
 
-// Keep the strict parameters for the random target movie
-export const getRandomPopularMovie = async (): Promise<Movie> => {
+// Helper function to search our curated list with Fuse.js for better matching
+export async function searchCuratedMovies(query: string): Promise<MovieBasic[]> {
+    if (query.length < 2) return [];
+
     try {
-        console.log('Starting getRandomPopularMovie...');
-        const currentYear = new Date().getFullYear();
-        const randomYear = Math.floor(Math.random() * (currentYear - 1990 + 1)) + 1990;
-        const randomPage = Math.floor(Math.random() * 20) + 1;
-        
-        console.log(`Fetching movies for year ${randomYear}, page ${randomPage}...`);
-        const response = await api.get('/discover/movie', {
-            params: {
-                ...MOVIE_POOL_PARAMS,
-                'primary_release_date.gte': `${randomYear}-01-01`,
-                'primary_release_date.lte': `${randomYear}-12-31`,
-                'page': randomPage,
-            },
-        });
-        
-        console.log('Received initial movie list');
-        const availableMovies = response.data.results.filter(
-            (movie: any) => !usedMovieIds.has(movie.id)
-        );
+        // Create Fuse instance for fuzzy searching
+        const fuseOptions = {
+            includeScore: true,
+            threshold: 0.4,    // Lower threshold for stricter matching
+            distance: 100,
+            minMatchCharLength: 2,
+            shouldSort: true,
+            findAllMatches: true,
+            ignoreLocation: true,
+        };
 
-        if (availableMovies.length === 0) {
-            console.log('No available movies, clearing cache and retrying...');
-            usedMovieIds.clear();
-            return getRandomPopularMovie();
-        }
+        const fuse = new Fuse(movieList, fuseOptions);
+        const searchResults = fuse.search(query);
 
-        const randomMovie = availableMovies[Math.floor(Math.random() * availableMovies.length)];
-        console.log('Selected random movie:', randomMovie.title);
-        usedMovieIds.add(randomMovie.id);
+        // Get the top 10 matches
+        const matchedTitles = searchResults
+            .slice(0, 10)
+            .map(result => result.item);
 
-        console.log('Fetching full movie details...');
-        const detailsResponse = await api.get(`/movie/${randomMovie.id}`, {
-            params: {
-                append_to_response: 'credits'
+        // For each matching title, search TMDB and get the movie details
+        const moviePromises = matchedTitles.map(async (title) => {
+            try {
+                const response = await api.get('/search/movie', {
+                    params: {
+                        query: title,
+                        include_adult: false,
+                    }
+                });
+
+                // Find the best match from TMDB results
+                const tmdbResults = response.data.results;
+                const exactMatch = tmdbResults.find((movie: { title: string }) => 
+                    movie.title.toLowerCase() === title.toLowerCase()
+                );
+
+                // Use exact match if found, otherwise use the first result
+                const bestMatch = exactMatch || tmdbResults[0];
+
+                if (bestMatch) {
+                    return {
+                        id: bestMatch.id,
+                        title: bestMatch.title,
+                        release_date: bestMatch.release_date,
+                        poster_path: bestMatch.poster_path
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error(`Error searching for movie "${title}":`, error);
+                return null;    
             }
         });
 
-        console.log('Received full movie details');
-        const movieData = detailsResponse.data;
-        return {
-            ...movieData,
-            cast: movieData.credits.cast || [],
-            crew: movieData.credits.crew || [],
-            genres: movieData.genres || [],
-            production_companies: movieData.production_companies || [],
-            belongs_to_collection: movieData.belongs_to_collection || null,
-        };
+        // Wait for all promises to resolve and filter out any null results
+        const movies = await Promise.all(moviePromises);
+        return movies.filter((movie: MovieBasic | null): movie is MovieBasic => movie !== null);
+
     } catch (error) {
-        console.error('Get random movie error:', error);
-        throw error;
+        console.error('Search failed:', error);
+        return [];
     }
-};
+}
+
+// Update getRandomPopularMovie to use our curated list
+export async function getRandomPopularMovie(): Promise<Movie | null> {
+    const randomIndex = Math.floor(Math.random() * movieList.length);
+    const randomTitle = movieList[randomIndex];
+    const movie = await findMovieByTitle(randomTitle);
+    if (!movie) return null;
+    return await getMovieDetails(movie.id);
+}
+
+// Update getDailyMovie to use our curated list
+export async function getDailyMovie(): Promise<Movie | null> {
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    const seed = getDailySeed(dateString);
+    const index = seed % movieList.length;
+    const title = movieList[index];
+    
+    const movie = await findMovieByTitle(title);
+    if (!movie) return null;
+    return await getMovieDetails(movie.id);
+}
 
 // Add a function to reset the game state
 export const resetGameState = () => {
@@ -461,11 +490,7 @@ export const clearMoviePoolCache = () => {
 };
 
 // Update the getDailySeed function to generate a consistent seed from the current date
-export function getDailySeed(): number {
-    const today = new Date();
-    const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    // Simple hash function to convert date string to a number
+export function getDailySeed(dateString: string): number {
     let hash = 0;
     for (let i = 0; i < dateString.length; i++) {
         const char = dateString.charCodeAt(i);
@@ -476,55 +501,55 @@ export function getDailySeed(): number {
     return Math.abs(hash);
 }
 
-// Update the getDailyMovie function to use the seed to select a movie
-export async function getDailyMovie(): Promise<Movie> {
-    // Get a seed based on today's date
-    const seed = getDailySeed();
-    console.log(`Generating daily movie with seed: ${seed}`);
-    
-    // Use your existing API to get a list of popular movies
-    const popularMovies = await fetchPopularMovies();
-    
-    // Use the seed to select a specific movie from the list
-    const index = seed % popularMovies.length;
-    const selectedMovie = popularMovies[index];
-    
-    // Get the full details of the selected movie
-    const movie = await getMovieDetails(selectedMovie.id);
-    
-    return movie;
-}
-
 // Updated to use the API token instead of API key
-async function fetchPopularMovies(): Promise<MovieBasic[]> {
-    const API_BASE_URL = 'https://api.themoviedb.org/3';
-    const API_TOKEN = import.meta.env.VITE_TMDB_ACCESS_TOKEN;
+// async function fetchPopularMovies(): Promise<MovieBasic[]> {
+//     const API_BASE_URL = 'https://api.themoviedb.org/3';
+//     const API_TOKEN = import.meta.env.VITE_TMDB_ACCESS_TOKEN;
     
-    // Use the same strict parameters we use for practice games
-    const params = new URLSearchParams({
-        'sort_by': 'popularity.desc',
-        'vote_count.gte': '5000',
-        'vote_average.gte': '6.5',
-        'with_original_language': 'en',
-        'page': '1',
-        'primary_release_date.gte': '1990-01-01',
-        'primary_release_date.lte': `${new Date().getFullYear()}-12-31`,
-    });
+//     // Use the same strict parameters we use for practice games
+//     const params = new URLSearchParams({
+//         'sort_by': 'popularity.desc',
+//         'vote_count.gte': '5000',
+//         'vote_average.gte': '6.5',
+//         'with_original_language': 'en',
+//         'page': '1',
+//         'primary_release_date.gte': '1990-01-01',
+//         'primary_release_date.lte': `${new Date().getFullYear()}-12-31`,
+//     });
     
-    const response = await fetch(
-        `${API_BASE_URL}/discover/movie?${params.toString()}`,
-        {
-            headers: {
-                'Authorization': `Bearer ${API_TOKEN}`,
-                'Content-Type': 'application/json'
-            }
+//     const response = await fetch(
+//         `${API_BASE_URL}/discover/movie?${params.toString()}`,
+//         {
+//             headers: {
+//                 'Authorization': `Bearer ${API_TOKEN}`,
+//                 'Content-Type': 'application/json'
+//             }
+//         }
+//     );
+    
+//     if (!response.ok) {
+//         throw new Error(`Failed to fetch popular movies: ${response.status}`);
+//     }
+    
+//     const data = await response.json();
+//     return data.results;
+// }
+
+async function findMovieByTitle(title: string): Promise<MovieBasic | null> {
+    const response = await api.get('/search/movie', {
+        params: {
+            query: title,
+            include_adult: false,
+            'vote_count.gte': 100,
+            'sort_by': 'popularity.desc',
+            'page': 1,
+            'per_page': 1
         }
-    );
-    
-    if (!response.ok) {
-        throw new Error(`Failed to fetch popular movies: ${response.status}`);
+    });
+
+    if (response.data.results.length > 0) {
+        const movie = response.data.results[0] as MovieBasic;
+        return movie;
     }
-    
-    const data = await response.json();
-    return data.results;
+    return null;
 } 
