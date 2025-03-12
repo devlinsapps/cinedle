@@ -11,7 +11,7 @@ import {
     Collapse,
 } from '@mui/material';
 import type { Movie, MovieGuessResult, MovieBasic } from '../config/tmdb';
-import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies, getDailyMovie, searchCuratedMovies } from '../services/tmdb';
+import { searchMovies, getMovieDetails, getRandomPopularMovie, compareMovies, getDailyMovie } from '../services/tmdb';
 import { debounce } from '@mui/material/utils';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
